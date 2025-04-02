@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Transit Hub - A/C/E Line Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .alert-card {
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+        .vehicle-card {
+            background-color: #e9ecef;
+        }
+        .trip-card {
+            background-color: #f8f9fa;
+        }
+        .timestamp {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        .position-status {
+            font-size: 0.9rem;
+            color: #dc3545;
+            margin-top: 0.5rem;
+        }
+        .position-available {
+            color: #198754;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">NYC Transit Hub - A/C/E Line Status</h1>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Feed Information</h5>
+                        <p id="feed-info" class="mb-0">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <h3>Alerts</h3>
+                <div id="alerts-container"></div>
+            </div>
+            <div class="col-md-4">
+                <h3>Vehicle Positions</h3>
+                <div id="vehicles-container"></div>
+            </div>
+            <div class="col-md-4">
+                <h3>Trip Updates</h3>
+                <div id="trips-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleTimeString();
+        }
+
+        function updateFeed() {
+            fetch('/api/ace-feed')
+                .then(response => response.json())
+                .then(data => {
+                    // Update feed info
+                    document.getElementById('feed-info').innerHTML = `
+                        Last Updated: ${formatTimestamp(data.timestamp)}<br>
+                        Total Entities: ${data.entity_count}
+                    `;
+
+                    // Clear containers
+                    document.getElementById('alerts-container').innerHTML = '';
+                    document.getElementById('vehicles-container').innerHTML = '';
+                    document.getElementById('trips-container').innerHTML = '';
+
+                    // Process entities
+                    data.entities.forEach(entity => {
+                        if (entity.type === 'alert') {
+                            const alertCard = document.createElement('div');
+                            alertCard.className = 'card status-card alert-card';
+                            alertCard.innerHTML = `
+                                <div class="card-body">
+                                    <h6 class="card-title">${entity.header_text}</h6>
+                                    <p class="card-text">${entity.description_text}</p>
+                                    <p class="card-text"><small class="text-muted">Cause: ${entity.cause}</small></p>
+                                </div>
+                            `;
+                            document.getElementById('alerts-container').appendChild(alertCard);
+                        }
+                        else if (entity.type === 'vehicle') {
+                            const vehicleCard = document.createElement('div');
+                            vehicleCard.className = 'card status-card vehicle-card';
+                            const positionStatusClass = entity.position.status === 'position_available' ? 'position-available' : '';
+                            vehicleCard.innerHTML = `
+                                <div class="card-body">
+                                    <h6 class="card-title">Vehicle ${entity.vehicle_id}</h6>
+                                    <p class="card-text">Current Stop: ${entity.current_stop}</p>
+                                    <p class="card-text">Status: ${entity.status}</p>
+                                    <p class="card-text">Position: ${entity.position.latitude.toFixed(6)}, ${entity.position.longitude.toFixed(6)}</p>
+                                    ${entity.position.message ? `<p class="position-status ${positionStatusClass}">${entity.position.message}</p>` : ''}
+                                </div>
+                            `;
+                            document.getElementById('vehicles-container').appendChild(vehicleCard);
+                        }
+                        else if (entity.type === 'trip_update') {
+                            const tripCard = document.createElement('div');
+                            tripCard.className = 'card status-card trip-card';
+                            let stopUpdatesHtml = '';
+                            if (entity.stop_updates) {
+                                stopUpdatesHtml = entity.stop_updates.map(stop => `
+                                    <div class="mb-2">
+                                        <strong>Stop ${stop.stop_id}</strong><br>
+                                        Arrival: ${formatTimestamp(stop.arrival_time)}<br>
+                                        Departure: ${formatTimestamp(stop.departure_time)}
+                                    </div>
+                                `).join('');
+                            }
+                            tripCard.innerHTML = `
+                                <div class="card-body">
+                                    <h6 class="card-title">Trip ${entity.trip_id}</h6>
+                                    <p class="card-text">Route: ${entity.route_id}</p>
+                                    ${stopUpdatesHtml}
+                                </div>
+                            `;
+                            document.getElementById('trips-container').appendChild(tripCard);
+                        }
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Update every 30 seconds
+        setInterval(updateFeed, 30000);
+        updateFeed(); // Initial load
+    </script>
+</body>
+</html> 
