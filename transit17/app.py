@@ -152,10 +152,10 @@ def get_ace_feed():
         return handle_mta_error(e)
 
 def save_to_database(feed):
-    """将GTFS数据保存到数据库"""
+    """save GTFS data to database"""
     feed_timestamp = datetime.fromtimestamp(feed.header.timestamp)
     
-    # 保存行程更新
+    # save trip update
     for entity in feed.entity:
         if entity.HasField('trip_update'):
             trip_update = TripUpdate(
@@ -168,9 +168,9 @@ def save_to_database(feed):
                 feed_timestamp=feed_timestamp
             )
             db.session.add(trip_update)
-            db.session.flush()  # 获取trip_update的ID
+            db.session.flush()  # get trip_update's ID
             
-            # 保存站点更新
+            # save stop updates
             for stop_time_update in entity.trip_update.stop_time_update:
                 stop_update = StopTimeUpdate(
                     trip_update_id=trip_update.id,
@@ -181,7 +181,7 @@ def save_to_database(feed):
                 )
                 db.session.add(stop_update)
         
-        # 保存车辆位置
+        # save vehicle position
         elif entity.HasField('vehicle'):
             vehicle = entity.vehicle
             vehicle_position = VehiclePosition(
@@ -202,7 +202,7 @@ def save_to_database(feed):
             )
             db.session.add(vehicle_position)
         
-        # 保存警报
+        # save alert
         elif entity.HasField('alert'):
             alert = entity.alert
             alert_record = Alert(
@@ -224,24 +224,24 @@ def save_to_database(feed):
     
     try:
         db.session.commit()
-        print("数据已成功保存到数据库")
+        print("Data saved successfully to database")
     except Exception as e:
         db.session.rollback()
-        print(f"保存数据时出错: {str(e)}")
+        print(f"Error saving data: {str(e)}")
 
-# 修改get_subway_status函数来保存数据
+# modify get_subway_status function to save data
 @app.route('/api/subway-status')
 def get_subway_status():
     try:
         feed = mta_api.get_feed()
         if feed:
-            # 保存数据到数据库
+            # save data to database
             save_to_database(feed)
-            # 处理数据并返回
+            # process data and return
             subway_data = process_subway_data(feed)
             return jsonify(subway_data)
         else:
-            return jsonify({'error': '无法获取数据'}), 500
+            return jsonify({'error': 'Failed to fetch data'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
