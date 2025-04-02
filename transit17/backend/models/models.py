@@ -4,7 +4,7 @@ from datetime import datetime
 db = SQLAlchemy()
 
 class TripUpdate(db.Model):
-    """存储行程更新信息"""
+    """store trip update information"""
     id = db.Column(db.Integer, primary_key=True)
     trip_id = db.Column(db.String(50), nullable=False)
     route_id = db.Column(db.String(10), nullable=False)
@@ -15,7 +15,7 @@ class TripUpdate(db.Model):
     feed_timestamp = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # 关联的站点更新
+    # related stop updates
     stop_updates = db.relationship('StopTimeUpdate', backref='trip_update', lazy=True)
 
     def to_dict(self):
@@ -33,7 +33,7 @@ class TripUpdate(db.Model):
         }
 
 class StopTimeUpdate(db.Model):
-    """存储站点时间更新信息"""
+    """store stop time update information"""
     id = db.Column(db.Integer, primary_key=True)
     trip_update_id = db.Column(db.Integer, db.ForeignKey('trip_update.id'), nullable=False)
     stop_id = db.Column(db.String(10), nullable=False)
@@ -53,7 +53,7 @@ class StopTimeUpdate(db.Model):
         }
 
 class VehiclePosition(db.Model):
-    """存储车辆位置信息"""
+    """store vehicle position information"""
     id = db.Column(db.Integer, primary_key=True)
     vehicle_id = db.Column(db.String(50))
     label = db.Column(db.String(50))
@@ -92,7 +92,7 @@ class VehiclePosition(db.Model):
         }
 
 class Alert(db.Model):
-    """存储服务警报信息"""
+    """store service alert information"""
     id = db.Column(db.Integer, primary_key=True)
     active_period_start = db.Column(db.DateTime)
     active_period_end = db.Column(db.DateTime)
