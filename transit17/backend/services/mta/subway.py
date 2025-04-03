@@ -64,64 +64,6 @@ class SubwayService(BaseMTAService):
                 feeds[line_id] = feed
                 
         return feeds
-
-    def process_trip_updates(self, feed):
-        """process trip update data"""
-        if not feed:
-            return []
-            
-        trip_updates = []
-        for entity in feed.entity:
-            if entity.HasField('trip_update'):
-                trip = entity.trip_update.trip
-                updates = []
-                
-                # process stop time updates
-                for stop_update in entity.trip_update.stop_time_update:
-                    updates.append({
-                        'stop_id': stop_update.stop_id,
-                        'arrival_time': stop_update.arrival.time if stop_update.HasField('arrival') else None,
-                        'departure_time': stop_update.departure.time if stop_update.HasField('departure') else None,
-                        'stop_sequence': stop_update.stop_sequence
-                    })
-                    
-                trip_updates.append({
-                    'trip_id': trip.trip_id,
-                    'route_id': trip.route_id,
-                    'direction_id': trip.direction_id,
-                    'start_time': trip.start_time,
-                    'start_date': trip.start_date,
-                    'schedule_relationship': trip.schedule_relationship,
-                    'stop_updates': updates,
-                    'timestamp': self.get_timestamp()
-                })
-                
-        return trip_updates
-        
-    def process_vehicle_positions(self, feed):
-        """process vehicle position data"""
-        if not feed:
-            return []
-            
-        positions = []
-        for entity in feed.entity:
-            if entity.HasField('vehicle'):
-                vehicle = entity.vehicle
-                positions.append({
-                    'vehicle_id': vehicle.vehicle.id,
-                    'trip_id': vehicle.trip.trip_id if vehicle.HasField('trip') else None,
-                    'current_stop_sequence': vehicle.current_stop_sequence,
-                    'current_status': vehicle.current_status,
-                    'timestamp': datetime.fromtimestamp(vehicle.timestamp),
-                    'position': {
-                        'latitude': vehicle.position.latitude,
-                        'longitude': vehicle.position.longitude,
-                        'speed': vehicle.position.speed,
-                        'bearing': vehicle.position.bearing
-                    }
-                })
-                
-        return positions
         
     def get_realtime_data(self):
         """get real-time data for all subway lines"""

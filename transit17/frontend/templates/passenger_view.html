@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTA Transit Information</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .card { margin-bottom: 20px; }
+        .table { margin-bottom: 0; }
+        .alert { margin-bottom: 10px; }
+        .service-status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status-good { background-color: #d4edda; color: #155724; }
+        .status-delayed { background-color: #fff3cd; color: #856404; }
+        .status-disrupted { background-color: #f8d7da; color: #721c24; }
+        .refresh-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .spinner-border {
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.5rem;
+        }
+        .vehicle-info {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .arrival-time {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <button class="btn btn-primary refresh-button" onclick="refreshData()" id="refreshButton">
+            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            Refresh Data
+        </button>
+        
+        <h1 class="mb-4">MTA Transit Information</h1>
+        
+        <!-- Error Alert -->
+        <div class="alert alert-danger d-none" id="errorAlert" role="alert">
+            An error occurred while loading data. Please try again later.
+        </div>
+        
+        <!-- Service Status Overview -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Service Status Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="service-status">
+                    <div class="col-12 text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading service status...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Service Alerts -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Service Alerts</h5>
+            </div>
+            <div class="card-body" id="service-alerts">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    Loading service alerts...
+                </div>
+            </div>
+        </div>
+
+        <!-- Subway Lines -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Subway Lines</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Line</th>
+                                <th>Status</th>
+                                <th>Vehicles</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subway-lines">
+                            <tr>
+                                <td colspan="3" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Loading subway lines...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Station Information -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Major Stations</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Station</th>
+                                <th>Lines</th>
+                                <th>Next Arrivals</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stations">
+                            <tr>
+                                <td colspan="3" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Loading stations...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function getStatusClass(status) {
+            if (status.includes('Good') || status.includes('Normal') || status.includes('Operating')) {
+                return 'status-good';
+            } else if (status.includes('Delayed')) {
+                return 'status-delayed';
+            } else if (status.includes('Disrupted') || status.includes('Alert')) {
+                return 'status-disrupted';
+            }
+            return 'status-good';
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        function formatTimeUntil(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = Math.floor((date - now) / 60000); // convert to minutes
+            if (diff < 0) return 'arrived';
+            if (diff < 1) return 'arriving';
+            return `${diff} minutes`;
+        }
+
+        function showLoading() {
+            document.getElementById('refreshButton').classList.add('loading');
+            document.getElementById('refreshButton').querySelector('.spinner-border').classList.remove('d-none');
+        }
+
+        function hideLoading() {
+            document.getElementById('refreshButton').classList.remove('loading');
+            document.getElementById('refreshButton').querySelector('.spinner-border').classList.add('d-none');
+        }
+
+        function showError(message) {
+            const errorAlert = document.getElementById('errorAlert');
+            errorAlert.textContent = message || 'An error occurred while loading data. Please try again later.';
+            errorAlert.classList.remove('d-none');
+        }
+
+        function hideError() {
+            document.getElementById('errorAlert').classList.add('d-none');
+        }
+
+        function updateServiceStatus(data) {
+            const container = document.getElementById('service-status');
+            container.innerHTML = `
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Subway Lines</h6>
+                            <p class="card-text">
+                                <span class="service-status ${getStatusClass(data.service_status.subway)}">
+                                    ${data.service_status.subway}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">LIRR</h6>
+                            <p class="card-text">
+                                <span class="service-status ${getStatusClass(data.service_status.lirr)}">
+                                    ${data.service_status.lirr}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Metro-North</h6>
+                            <p class="card-text">
+                                <span class="service-status ${getStatusClass(data.service_status.mnr)}">
+                                    ${data.service_status.mnr}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateServiceAlerts(data) {
+            const container = document.getElementById('service-alerts');
+            if (data.alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        No current service alerts. All services are operating normally.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = data.alerts.map(alert => `
+                <div class="alert alert-warning">
+                    <h6>${alert.header}</h6>
+                    <p>${alert.description}</p>
+                    <small>Start Time: ${formatDate(alert.start_time)}</small>
+                    ${alert.end_time ? `<br><small>End Time: ${formatDate(alert.end_time)}</small>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function updateSubwayLines(data) {
+            const container = document.getElementById('subway-lines');
+            container.innerHTML = Object.entries(data.subway_lines).map(([line, info]) => `
+                <tr>
+                    <td>${line}</td>
+                    <td><span class="service-status ${getStatusClass(info.status)}">${info.status}</span></td>
+                    <td>
+                        ${info.vehicles.length > 0 ? info.vehicles.map(vehicle => `
+                            <div class="vehicle-info">
+                                <strong>Vehicle ${vehicle.id}</strong><br>
+                                Current Stop: ${vehicle.current_stop}<br>
+                                Status: ${vehicle.status}<br>
+                                Update Time: ${formatDate(vehicle.timestamp)}
+                            </div>
+                        `).join('<hr>') : 'No vehicle information'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStations(data) {
+            const container = document.getElementById('stations');
+            container.innerHTML = data.stations.map(station => `
+                <tr>
+                    <td>${station.name}</td>
+                    <td>${station.lines}</td>
+                    <td>
+                        ${station.arrivals.length > 0 ? station.arrivals.map(arrival => `
+                            <div class="arrival-info">
+                                <span class="arrival-time">${formatTimeUntil(arrival.arrival_time)}</span>
+                                <span class="route-badge">${arrival.route}</span>
+                                <span class="status-badge">${arrival.status}</span>
+                            </div>
+                        `).join('<hr>') : 'No arrival information'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function fetchData() {
+            showLoading();
+            hideError();
+            
+            try {
+                const response = await fetch('/api/status');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                updateServiceStatus(data);
+                updateServiceAlerts(data);
+                updateSubwayLines(data);
+                updateStations(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showError(error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function refreshData() {
+            fetchData();
+        }
+
+        // Initial load
+        fetchData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(fetchData, 30000);
+    </script>
+</body>
+</html> 

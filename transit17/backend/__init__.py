@@ -14,6 +14,10 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
     
+    # 注册蓝图
+    from backend.routes import views
+    app.register_blueprint(views.bp)
+    
     return app
 
 # import models
